@@ -28,8 +28,8 @@ def overlayImage(img1):
     img1[0:rows, 0:cols ] = dst
     
     cv2.imshow("photo", img1)
-    img_name = "pics/test.jpg".format(img_counter)
-    cv2.imwrite(img_name, img1)
+    img_name = TEST_JPG
+    cv2.imwrite(TEST_JPG, img1)
     print("[SAVED PICTURE...]")
 
 def printImage():
@@ -57,6 +57,7 @@ while True:
     elif k%256 == 129 or k%256 == 32: # f18
         print("[TAKING PICTURE...]")
         overlayImage(frame)
+        # subprocess.call("mspaint /p \"{}\"".format("pics\\test.jpg"))
 
 cam.release()
 cv2.destroyAllWindows()
