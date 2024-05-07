@@ -2,13 +2,14 @@ import cv2
 import subprocess
 import time
 import numpy as np
+from PIL import ImageFont, ImageDraw, Image
 
 print("Enter webcam you would like to use (0 or 1): ")
 WEBCAM_INDEX = 0 # v4l2-ctl --list-devices
 PRINTER = "konsens_printer"
 PRINTING_ACTIVE = True
 COOLDOWN = 25000
-SIZE = "a4"
+SIZE = "a5"
 
 CONTRAST_VAL = 1.2
 BRIGHTNESS_VAL = 60
@@ -18,15 +19,18 @@ OVERLAY_FILE = "Konsens.jpg"
 BORDER_FILE = "KonsensBorder.jpg"
 TEST_JPG = "pics/test.jpg"
 PRINTING_FILE = "Printing.jpg"
+FONT_PATH = "Modak-Regular.ttf"
 
 img2 = cv2.imread(OVERLAY_FILE)
 borderImg = cv2.imread(BORDER_FILE)
 printing_message = cv2.imread(PRINTING_FILE)
 
 font = cv2.FONT_HERSHEY_DUPLEX 
-org = (500, 510) 
-fontScale = 12
+position = (500, 20)
 color = (195, 22, 161)
+fontScale = 32
+
+org = (500, 510) 
 thickness = 30
 
 def sleep_seconds(seconds):
@@ -39,6 +43,16 @@ def sleep_seconds(seconds):
         now = time.time()
         if (now - start >= seconds):
             break
+
+def addText(img, text):
+    cv2_im_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    pil_im = Image.fromarray(cv2_im_rgb)
+    draw = ImageDraw.Draw(pil_im)  
+    font = ImageFont.truetype(FONT_PATH, 500)  
+    draw.text(position, text, font=font, fill=color, font_size=fontScale)
+    cv2_im_processed = cv2.cvtColor(np.array(pil_im), cv2.COLOR_RGB2BGR)
+    return cv2_im_processed
+    
 
 def overlayImage(img1):
     print("[SAVING PICTURE...]")
@@ -84,6 +98,12 @@ def printImage():
     print("[PRINTING...]")
     subprocess.run("lp " + TEST_JPG)
 
+def readFrame():
+    ret, frame = cam.read()
+    if not ret:
+        print("failed to grab frame")
+    return frame
+
 print("[STARTING...] (may take a bit)")
 cam = cv2.VideoCapture(WEBCAM_INDEX)
 cam.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
@@ -91,28 +111,25 @@ cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
 print("[WEBCAM SETUP COMPLETE... ]")
 cv2.namedWindow("prev", cv2.WND_PROP_FULLSCREEN)
-cv2.setWindowProperty("prev", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_NORMAL)
+cv2.setWindowProperty("prev", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 preparing = False
 printing = False
 countdown = 3
 while True:
-    ret, frame = cam.read()
-    if not ret:
-        print("failed to grab frame")
-        break
+    frame = readFrame()
 
     if preparing:
-        text_frame = cv2.putText(frame, "{}".format(countdown), org, font, fontScale, color, thickness, cv2.LINE_AA) 
-        cv2.imshow("prev", text_frame)
-        sleep_seconds(1)
+        # text_frame = cv2.putText(frame, "{}".format(countdown), org, font, fontScale, color, thickness, cv2.LINE_AA) 
+        for i in range(10):
+            frame = readFrame()
+            text_frame = addText(frame, "{}".format(countdown))
+            cv2.imshow("prev", text_frame)
+            sleep_seconds(0.1)
         countdown -= 1
         if (countdown <= 0):
             preparing = False
             countdown = 3
-            ret, frame = cam.read()
-            if not ret:
-                print("failed to grab frame")
-                break
+            frame = readFrame()
             setBorderImage(frame)
             if (PRINTING_ACTIVE):
                 subprocess.run(["lp", "-o", "fit-to-page", "-o", "media={}".format(SIZE), "-o", "brightness={}".format(BRIGHTNESS), "-d", PRINTER, TEST_JPG])
