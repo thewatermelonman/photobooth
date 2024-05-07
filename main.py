@@ -4,6 +4,7 @@ from PIL import Image, ImageWin
 
 OVERLAY_FILE = "Konsens.jpg"
 TEST_JPG = "pics/test.jpg"
+WEBCAM_INDEX = 0
 
 img_counter = 0
 img2 = cv2.imread(OVERLAY_FILE)
@@ -35,7 +36,7 @@ def printImage():
     print("[PRINTING...]")
 
 print("[STARTING...] (may take a bit)")
-cam = cv2.VideoCapture(1, cv2.CAP_DSHOW)
+cam = cv2.VideoCapture(WEBCAM_INDEX, cv2.CAP_DSHOW)
 cam.set(cv2.CAP_PROP_FRAME_WIDTH, 2480)
 cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 1748)
 
@@ -53,7 +54,7 @@ while True:
     if k%256 == 27: # ESC
         print("[EXIT PROGRAMM...]")
         break
-    elif k%256 == 32: # SPACE
+    elif k%256 == 129 or k%256 == 32: # f18
         print("[TAKING PICTURE...]")
         overlayImage(frame)
 
