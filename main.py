@@ -1,13 +1,35 @@
 import cv2
 import subprocess
-from PIL import Image, ImageWin
+import time
+import numpy as np
 
+print("Enter webcam you would like to use (0 or 1): ")
+COOLDOWN = 25000
+BRIGHTNESS = 200
 OVERLAY_FILE = "Konsens.jpg"
+BORDER_FILE = "KonsensBorder.jpg"
 TEST_JPG = "pics/test.jpg"
 WEBCAM_INDEX = 0
+PRINTER = "konsens_printer"
+PRINTING_FILE = "Printing.jpg"
 
-img_counter = 0
 img2 = cv2.imread(OVERLAY_FILE)
+borderImg = cv2.imread(BORDER_FILE)
+printing_message = cv2.imread(PRINTING_FILE)
+
+font = cv2.FONT_HERSHEY_DUPLEX 
+org = (500, 410) 
+fontScale = 12
+color = (255, 255, 255)
+thickness = 30
+
+def sleep_seconds(seconds):
+    start = time.time()
+    while(True):
+        cv2.waitKey(10)
+        now = time.time()
+        if (now - start >= seconds):
+            break
 
 def overlayImage(img1):
     print("[SAVING PICTURE...]")
@@ -26,38 +48,79 @@ def overlayImage(img1):
     # Put logo in ROI and modify the main image
     dst = cv2.add(img1_bg,img2_fg)
     img1[0:rows, 0:cols ] = dst
-    
-    cv2.imshow("photo", img1)
-    img_name = TEST_JPG
-    cv2.imwrite(TEST_JPG, img1)
+     
+    cv2.imshow("prev", img1)
+    cropped = img1[0:720, 100:1180]
+    cv2.imwrite(TEST_JPG, cropped)
+    print("[SAVED PICTURE...]")
+
+def vconcat_resize_min(im_list, interpolation=cv2.INTER_CUBIC):
+    w_min = min(im.shape[1] for im in im_list)
+    im_list_resize = [cv2.resize(im, (w_min, int(im.shape[0] * w_min / im.shape[1])), interpolation=interpolation)
+                      for im in im_list]
+    return cv2.vconcat(im_list_resize)
+
+def setBorderImage(img1):
+    print("[SAVING PICTURE...]")
+    assert img1 is not None, "file could not be read, check with os.path.exists()"
+    assert borderImg is not None, "file could not be read, check with os.path.exists()"
+    white_border = 255 * np.ones((60,2480,3), np.uint8)
+    final_img = vconcat_resize_min([white_border, borderImg, img1, borderImg]) 
+    cv2.imwrite(TEST_JPG, final_img)
     print("[SAVED PICTURE...]")
 
 def printImage():
     print("[PRINTING...]")
+    subprocess.run("lp " + TEST_JPG)
 
 print("[STARTING...] (may take a bit)")
-cam = cv2.VideoCapture(WEBCAM_INDEX, cv2.CAP_DSHOW)
-cam.set(cv2.CAP_PROP_FRAME_WIDTH, 2480)
-cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 1748)
+cam = cv2.VideoCapture(WEBCAM_INDEX)
+cam.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
 print("[WEBCAM SETUP COMPLETE... ]")
-cv2.namedWindow("livepreview")
-cv2.namedWindow("photo")
-
+cv2.namedWindow("prev", cv2.WND_PROP_FULLSCREEN)
+cv2.setWindowProperty("prev", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_NORMAL)
+preparing = False
+printing = False
+countdown = 3
 while True:
     ret, frame = cam.read()
     if not ret:
         print("failed to grab frame")
         break
-    cv2.imshow("livepreview", frame)
+
+    if preparing:
+        text_frame = cv2.putText(frame, "{}".format(countdown), org, font, fontScale, color, thickness, cv2.LINE_AA) 
+        cv2.imshow("prev", text_frame)
+        sleep_seconds(1)
+        countdown -= 1
+        if (countdown <= 0):
+            preparing = False
+            countdown = 3
+            ret, frame = cam.read()
+            if not ret:
+                print("failed to grab frame")
+                break
+            setBorderImage(frame)
+            subprocess.run(["lp", "-o", "fit-to-page", "-o", "media=a5", "-o", "brightness={}".format(BRIGHTNESS), "-d", PRINTER, TEST_JPG])
+            printing = True
+
+    cv2.imshow("prev", frame)
     k = cv2.waitKey(1)
     if k%256 == 27: # ESC
         print("[EXIT PROGRAMM...]")
         break
-    elif k%256 == 129 or k%256 == 32: # f18
-        print("[TAKING PICTURE...]")
-        overlayImage(frame)
-        # subprocess.call("mspaint /p \"{}\"".format("pics\\test.jpg"))
+    elif k%256 == 32 and not preparing and not printing: # f18
+        preparing = True
+    elif printing:
+        print("[PRINTED...]")
+        cv2.imshow("prev", printing_message)
+        printing = False
+        sleep_seconds(20)
+    else:
+        cv2.imshow("prev", frame)
+
 
 cam.release()
 cv2.destroyAllWindows()
