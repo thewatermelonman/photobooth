@@ -4,13 +4,19 @@ import time
 import numpy as np
 
 print("Enter webcam you would like to use (0 or 1): ")
+WEBCAM_INDEX = 0 # v4l2-ctl --list-devices
+PRINTER = "konsens_printer"
+PRINTING_ACTIVE = True
 COOLDOWN = 25000
-BRIGHTNESS = 200
+SIZE = "a4"
+
+CONTRAST_VAL = 1.2
+BRIGHTNESS_VAL = 60
+BRIGHTNESS = 150
+
 OVERLAY_FILE = "Konsens.jpg"
 BORDER_FILE = "KonsensBorder.jpg"
 TEST_JPG = "pics/test.jpg"
-WEBCAM_INDEX = 0
-PRINTER = "konsens_printer"
 PRINTING_FILE = "Printing.jpg"
 
 img2 = cv2.imread(OVERLAY_FILE)
@@ -18,15 +24,18 @@ borderImg = cv2.imread(BORDER_FILE)
 printing_message = cv2.imread(PRINTING_FILE)
 
 font = cv2.FONT_HERSHEY_DUPLEX 
-org = (500, 410) 
+org = (500, 510) 
 fontScale = 12
-color = (255, 255, 255)
+color = (195, 22, 161)
 thickness = 30
 
 def sleep_seconds(seconds):
     start = time.time()
     while(True):
-        cv2.waitKey(10)
+        k = cv2.waitKey(10)
+        if (k%256 == 27):
+            import sys
+            sys.exit(0)
         now = time.time()
         if (now - start >= seconds):
             break
@@ -64,8 +73,10 @@ def setBorderImage(img1):
     print("[SAVING PICTURE...]")
     assert img1 is not None, "file could not be read, check with os.path.exists()"
     assert borderImg is not None, "file could not be read, check with os.path.exists()"
+    img1 = cv2.convertScaleAbs(img1, alpha=CONTRAST_VAL, beta=BRIGHTNESS_VAL)
     white_border = 255 * np.ones((60,2480,3), np.uint8)
     final_img = vconcat_resize_min([white_border, borderImg, img1, borderImg]) 
+    final_img = cv2.cvtColor(final_img, cv2.COLOR_BGR2GRAY)
     cv2.imwrite(TEST_JPG, final_img)
     print("[SAVED PICTURE...]")
 
@@ -103,7 +114,8 @@ while True:
                 print("failed to grab frame")
                 break
             setBorderImage(frame)
-            subprocess.run(["lp", "-o", "fit-to-page", "-o", "media=a5", "-o", "brightness={}".format(BRIGHTNESS), "-d", PRINTER, TEST_JPG])
+            if (PRINTING_ACTIVE):
+                subprocess.run(["lp", "-o", "fit-to-page", "-o", "media={}".format(SIZE), "-o", "brightness={}".format(BRIGHTNESS), "-d", PRINTER, TEST_JPG])
             printing = True
 
     cv2.imshow("prev", frame)
